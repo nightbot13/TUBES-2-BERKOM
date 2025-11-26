@@ -9,6 +9,7 @@ menu = ["Pengeluaran", "Pemasukan", "Random", "Others", "=EXIT="]
 kat_in = ["Gaji", "Bulanan", "Rezeki"]
 kat_out = ["Konsumsi", "Transportasi", "Daily", "Hiburan", "Development"]
 
+# Tes github
 
 def clear():
     os.system("cls" if os.name == "nt" else "clear")
