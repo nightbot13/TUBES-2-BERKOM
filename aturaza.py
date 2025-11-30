@@ -99,10 +99,24 @@ def settings():
 
 def stats():
     title("STATISTICS")
-    # Most Visited
+    
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
 
+    # Average Spendings/Day
+    cursor.execute("""
+        SELECT AVG(total_harian) AS rata_harian
+        FROM(SELECT tanggal, SUM(keluar) as total_harian
+            FROM data_keuangan
+            GROUP BY tanggal    
+        )
+                    """)
+
+    rataan = cursor.fetchone()
+    rerata = round(rataan[0])
+    print(f"Rata-Rata Pengeluaran per Hari: {uang(rerata)}", end="\n")
+
+    # Most Visited
     cursor.execute("""
         SELECT subjek, COUNT(*) AS freq
         FROM data_keuangan
