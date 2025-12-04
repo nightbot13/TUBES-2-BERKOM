@@ -55,49 +55,47 @@ def random_rec():
 
     pick = questionary.select("Option:", choices=["Another One","Back"], qmark="").ask()
     if pick == "Another One": random_rec()
-    else:
-        main()
-        return
+    else: return
 
 def settings():
     set_menu = ["Add Kategori Pengeluaran", "Add Kategori Pemasukan", "Clear Data", "<-"]
     
-    title("SETTINGS")
-    pick = questionary.select("Options: ", choices=set_menu, qmark="").ask()
-    if pick == "<-":
-        others()
-        return
+    while True:
+        title("SETTINGS")
+        pick = questionary.select("Options: ", choices=set_menu, qmark="").ask()
+        if pick == "<-":
+            return
 
-    if pick == set_menu[0]:
-        # Belum store di database
-        title("KATEGORI PENGELUARAN")
-        print("Masukkan nama kategori baru (ketik - untuk mengakhiri)")
-        masih = True
-        while masih:
-            x = str(input(": "))
-            if x=='-': masih=False
-            else: kat_out.append(x)
-    elif pick == set_menu[1]:
-        # Belum store di database
-        title("KATEGORI PEMASUKAN")
-        print("Masukkan nama kategori baru (ketik - untuk mengakhiri)")
-        masih = True
-        while masih:
-            x = str(input(": "))
-            if x=='-': masih=False
-            else: kat_in.append(x)
-    elif pick==set_menu[2]:
-        title("CLEAR DATA")
-        pick = questionary.select("Apakah anda yakin akan MENGHAPUS SEMUA DATA ", choices=["Ya", "Tidak"], qmark="").ask()
-        if pick=="Ya":
-            conn = sqlite3.connect("data.db")
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM dat_keuangan")
-            conn.commit()
-            cursor.execute("VACUUM")
-            conn.commit()
-            conn.close()
-    settings()
+        if pick == set_menu[0]:
+            # Belum store di database
+            title("KATEGORI PENGELUARAN")
+            print("Masukkan nama kategori baru (ketik - untuk mengakhiri)")
+            masih = True
+            while masih:
+                x = str(input(": "))
+                if x=='-': masih=False
+                else: kat_out.append(x)
+        elif pick == set_menu[1]:
+            # Belum store di database
+            title("KATEGORI PEMASUKAN")
+            print("Masukkan nama kategori baru (ketik - untuk mengakhiri)")
+            masih = True
+            while masih:
+                x = str(input(": "))
+                if x=='-': masih=False
+                else: kat_in.append(x)
+        elif pick==set_menu[2]:
+            title("CLEAR DATA")
+            pick = questionary.select("Apakah anda yakin akan MENGHAPUS SEMUA DATA ", choices=["Ya", "Tidak"], qmark="").ask()
+            if pick=="Ya":
+                conn = sqlite3.connect("data.db")
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM dat_keuangan")
+                conn.commit()
+                cursor.execute("VACUUM")
+                conn.commit()
+                conn.close()
+    #settings()
 
 def stats():
     title("STATISTICS")
@@ -116,7 +114,7 @@ def stats():
 
     rataan = cursor.fetchone()
     rerata = round(rataan[0])
-    print(f"Rata-Rata Pengeluaran per Hari: {uang(rerata)}", end="\n")
+    print(f"Rata-Rata Pengeluaran per Hari: {uang(rerata)}", end="\n\n")
 
     # Most Visited
     cursor.execute("""
@@ -143,7 +141,7 @@ def stats():
     print("On progress...")
 
     questionary.press_any_key_to_continue().ask()
-    others()
+    return
 
 def history(x):
     clear()
@@ -178,19 +176,19 @@ def history(x):
         questionary.press_any_key_to_continue().ask()
         history(x)
     elif pick == pilihan[1]: history(f"{"ASC" if x == "DESC" else "DESC"}")
-    elif pick == "Back": others()
+    elif pick == "Back": return
 
 def others():
     others_menu = ["History", "Statistics", "Settings","<-"]
     
-    title("OTHERS")
-    pick = questionary.select("Options: ", choices=others_menu, qmark="").ask()
-    if pick=='History': history("DESC")
-    elif pick=="Statistics": stats()
-    elif pick=="Settings": settings() 
-    elif pick=="<-":
-        main()
-        return
+    while True:
+        title("OTHERS")
+        pick = questionary.select("Options: ", choices=others_menu, qmark="").ask()
+        if pick=='History': history("DESC")
+        elif pick=="Statistics": stats()
+        elif pick=="Settings": settings() 
+        elif pick=="<-":
+            return
 
 def ingput(x):
     if x == "Others":
@@ -243,13 +241,14 @@ def ingput(x):
     else: ingput(x)
 
 def main():
-    title("ATURAZA")
-    pick = questionary.select("Menu: ", choices=menu, qmark="").ask()
-    if pick == menu[4]:
-        clear()
-        print("Terima kasih!")
-        time.sleep(0.5)
-        return
-    ingput(pick)
+    while True:
+        title("ATURAZA")
+        pick = questionary.select("Menu: ", choices=menu, qmark="").ask()
+        if pick == menu[4]:
+            clear()
+            print("Terima kasih!")
+            time.sleep(0.5)
+            return
+        ingput(pick)
 
 main()
