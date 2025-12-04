@@ -4,12 +4,18 @@ from rich.console import Console
 from rich.table import Table
 
 console = Console()
-tanggal = time.strftime("%d/%m/%Y", time.localtime(time.time()))
+tanggal = time.strftime("%Y-%m-%d", time.localtime(time.time()))
 menu = ["Pengeluaran", "Pemasukan", "Random", "Others", "=EXIT="]
 kat_in = ["Gaji", "Bulanan", "Rezeki"]
 kat_out = ["Konsumsi", "Transportasi", "Daily", "Hiburan", "Development"]
 
 # Tes github
+
+def ftanggal(x):
+    thn=str(x[0:4])
+    bln=str(x[5:7])
+    hri=str(x[8:10])
+    return(f"{hri}/{bln}/{thn}")
 
 def clear():
     os.system("cls" if os.name == "nt" else "clear")
@@ -48,7 +54,7 @@ def random_rec():
     #table.add_column("Masuk", justify="right", style="green")
     table.add_column("Harga", justify="right", style="red")
     table.add_column("Catatan", justify="left")
-    table.add_row(str(row[0]), str(row[1]), str(row[2]), uang(row[5]), str(row[6]))#'''
+    table.add_row(ftanggal(str(row[0])), str(row[1]), str(row[2]), uang(row[5]), str(row[6]))#'''
     
     console.print(table)
     conn.close()
@@ -116,6 +122,30 @@ def stats():
     rerata = round(rataan[0])
     print(f"Rata-Rata Pengeluaran per Hari: {uang(rerata)}", end="\n\n")
 
+    # Most Spent this Week
+    cursor.execute("""
+        SELECT tanggal, keterangan, subjek, kategori, keluar, catatan
+        FROM data_keuangan
+        WHERE tanggal >= date('now', 'weekday 0', '-6 days')
+        ORDER BY keluar DESC
+        LIMIT 1
+                    """)
+
+    terbanyak = cursor.fetchone()
+
+    table = Table(title="Most Spent this Week", caption="*pengeluaran terbanyak minggu ini", caption_justify="left")
+
+    table.add_column("Tanggal", justify="center")
+    table.add_column("Keterangan", justify="left")
+    table.add_column("Lokasi/Subjek")
+    table.add_column("Kategori", justify="left")
+    table.add_column("Keluar", justify="right", style="red")
+    table.add_column("Catatan", justify="left")
+
+    table.add_row(ftanggal(str(terbanyak[0])), str(terbanyak[1]), str(terbanyak[2]), str(terbanyak[3]), uang(terbanyak[4]), str(terbanyak[5]))
+
+    console.print(table)
+
     # Most Visited
     cursor.execute("""
         SELECT subjek, COUNT(*) AS freq
@@ -165,7 +195,7 @@ def history(x):
     table.add_column("Catatan", justify="left")
 
     for row in rows:
-        table.add_row(str(row[0]), str(row[1]), str(row[2]), str(row[3]), uang(row[4]), uang(row[5]), str(row[6]))
+        table.add_row(ftanggal(str(row[0])), str(row[1]), str(row[2]), str(row[3]), uang(row[4]), uang(row[5]), str(row[6]))
 
     console.print(table)
     conn.close()
