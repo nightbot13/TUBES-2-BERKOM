@@ -55,7 +55,9 @@ def random_rec():
 
     pick = questionary.select("Option:", choices=["Another One","Back"], qmark="").ask()
     if pick == "Another One": random_rec()
-    else: main()
+    else:
+        main()
+        return
 
 def settings():
     set_menu = ["Add Kategori Pengeluaran", "Add Kategori Pemasukan", "Clear Data", "<-"]
