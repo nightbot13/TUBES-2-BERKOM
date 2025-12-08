@@ -6,30 +6,28 @@ from rich.table import Table
 console = Console()
 tanggal = time.strftime("%Y-%m-%d", time.localtime(time.time()))
 
-# Tes github
-
-def ftanggal(x):
+def ftanggal(x): # Formatting tanggal utk diprint
     thn=str(x[0:4])
     bln=str(x[5:7])
     hri=str(x[8:10])
     return(f"{hri}/{bln}/{thn}")
 
-def clear():
+def clear(): # Clear terminal
     os.system("cls" if os.name == "nt" else "clear")
 
-def title(x):
+def title(x): # Formatting Judul
     clear()
     x = "\033[4m\033[1m"+x+"\033[0m"
     print(x)
 
-def uang(x):
+def uang(x): # Formatting Rupiah
     if str(x) == 'None': return ""
 
     ans = f"Rp{x:,}".replace(",", ".")
 
     return ans+',00'
 
-def random_rec():
+def random_rec(): # Rekomendasi Konsumsi Random
     clear()
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
@@ -42,7 +40,6 @@ def random_rec():
     """, ("Konsumsi",))
     row = cursor.fetchone()
 
-    #'''
     table = Table(title="Random Pick", caption="*Hanya kategori konsumsi", caption_justify="left")
     table.add_column("Tanggal", justify="center")
     table.add_column("Keterangan", justify="left")
@@ -61,7 +58,8 @@ def random_rec():
     else:
         return
 
-def settings():
+def settings(): # Bagian Settings
+    # Pilihan Menu
     set_menu = ["Add Kategori", "Clear Data", "<-"]
     
     while True:
@@ -71,7 +69,6 @@ def settings():
             return
 
         if pick == set_menu[0]:
-            # Belum store di database
             title("ADD KATEGORI")
             conn = sqlite3.connect('data.db')
             cursor = conn.cursor()
@@ -99,9 +96,10 @@ def settings():
                 conn.commit()
                 conn.close()
 
-def stats():
+def stats(): # Bagian Statistic
     title("STATISTICS")
     
+    # Connect ke database
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
 
@@ -129,6 +127,7 @@ def stats():
 
     terbanyak = cursor.fetchone()
 
+    # Membuat tabel Most Spent this Week
     table = Table(title="Most Spent this Week", caption="*pengeluaran terbanyak minggu ini", caption_justify="left")
 
     table.add_column("Tanggal", justify="center")
@@ -138,6 +137,7 @@ def stats():
     table.add_column("Keluar", justify="right", style="red")
     table.add_column("Catatan", justify="left")
 
+    # Masukkan data ke dalam tabel
     table.add_row(ftanggal(str(terbanyak[0])), str(terbanyak[1]), str(terbanyak[2]), str(terbanyak[3]), uang(terbanyak[4]), str(terbanyak[5]))
 
     console.print(table)
@@ -153,6 +153,7 @@ def stats():
     
     most_freq = cursor.fetchall()
     
+    # Buat tabel Most Visited
     table = Table(title="Most Frequent", caption=" Most frequently interacted", caption_justify="left")
 
     table.add_column("Lokasi/Subjek")
@@ -169,17 +170,21 @@ def stats():
     questionary.press_any_key_to_continue().ask()
     return
 
-def history(x):
-    clear()
+def history(x): # History keuangan
+    clear() # Bersihin
+
+    # Pilihan Menu di History
     pilihan = ["Edit Data",f"Sort by {"Oldest" if x == "DESC" else "Newest"}","Back"]
+    
+    # Connect ke database
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
 
-    # Sort data berdasarkan tanggal
+    # Sort data berdasarkan tanggal (defaulnya dari yang terbaru)
     cursor.execute(f"SELECT tanggal, keterangan, subjek, kategori, masuk, keluar, catatan FROM data_keuangan ORDER BY rowid {x}")
     rows = cursor.fetchall()
 
-    # Tabel
+    # Membuat Tabel
     table = Table(title="History", caption=f" SORTING: {"newest" if x == "DESC" else "oldest"}", caption_justify="left")
 
     table.add_column("Tanggal", justify="center")
@@ -190,33 +195,45 @@ def history(x):
     table.add_column("Keluar", justify="right", style="red")
     table.add_column("Catatan", justify="left")
 
+    # Memasukkan data ke dalam tabel
     for row in rows:
         table.add_row(ftanggal(str(row[0])), str(row[1]), str(row[2]), str(row[3]), uang(row[4]), uang(row[5]), str(row[6]))
 
+    # Print Tabel
     console.print(table)
-    conn.close()
+    conn.close() # Mengakhiri koneksi dengan database
 
+    # Pilih Menu
     pick = questionary.select("Option:", choices=pilihan, qmark="").ask()
     if pick == "Edit Data": 
-        print("Fitur belum tersedia.")
+        print("Fitur belum tersedia.") # SOON
         questionary.press_any_key_to_continue().ask()
         history(x)
-    elif pick == pilihan[1]: history(f"{"ASC" if x == "DESC" else "DESC"}")
-    elif pick == "Back": return
+    elif pick == pilihan[1]:
+        history(f"{"ASC" if x == "DESC" else "DESC"}") # Ubah sorting tanggal
+    elif pick == "Back":
+        return
 
-def others():
+def others(): # Submenu Others
+    # Pilihan Menu
     others_menu = ["History", "Statistics", "Settings","<-"]
     
     while True:
-        title("OTHERS")
+        title("OTHERS") # Judul
+
+        # Pilih Menu
         pick = questionary.select("Options: ", choices=others_menu, qmark="").ask()
-        if pick=='History': history("DESC")
-        elif pick=="Statistics": stats()
-        elif pick=="Settings": settings() 
+        if pick=='History':
+            history("DESC") # History, defaultnya dari yang terbaru
+        elif pick=="Statistics":
+            stats()
+        elif pick=="Settings":
+            settings() 
         elif pick=="<-":
             return
 
-def ingput(x):
+def ingput(x): # Input Pengeluaran/Pemasukan
+    # Cek Menu yang Dipilih
     if x == "Others":
         others()
         return
@@ -224,10 +241,12 @@ def ingput(x):
         random_rec()
         return
     
+    # Convert x ke y
     y = ("keluar" if x=="Pengeluaran" else "masuk")
 
-    title(x.upper())
+    title(x.upper()) # JUDUL
 
+    # Ambil Kategori
     conn = sqlite3.connect('data.db')
     cursor = conn.cursor()
 
@@ -239,28 +258,25 @@ def ingput(x):
     kategori = cursor.fetchall()
     kategoris = [row[0] for row in kategori]
 
-    query = f'''INSERT INTO data_keuangan (tanggal, keterangan, subjek, kategori, {y}, catatan) VALUES (?, ?, ?, ?, ?, ?)'''
-
-    # INPUT
-
     # Autocomplete feature (subjek/lokasi)
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT subjek
+        SELECT DISTINCT subjek
         FROM data_keuangan
                     """)
     
     sub_list = cursor.fetchall()
     subjeks = [row[0] for row in sub_list]
 
-    #a = str(input("Keterangan: " ))
-    a = questionary.text("Keterangan: ",qmark="").ask()
-    #b = str(input("Lokasi/Subjek: "))
+    # INPUT
+    query = f'''INSERT INTO data_keuangan (tanggal, keterangan, subjek, kategori, {y}, catatan) VALUES (?, ?, ?, ?, ?, ?)'''
+
+    a = str(questionary.text("Keterangan: ",qmark="").ask())
     b = questionary.autocomplete("Lokasi/Subjek: ",choices=subjeks, qmark="").ask()
     c = questionary.select("Kategori: ", choices=kategoris, qmark="").ask()
-    d = int(input("Nominal: "))
-    e = str(input("Catatan: "))
+    d = int(questionary.text("Nominal: ",qmark="").ask())
+    e = str(questionary.text("Catatan: ",qmark="").ask())
 
     isian = (tanggal, a, b, c, d, e)
     
@@ -270,12 +286,12 @@ def ingput(x):
 
     conn.close()
 
-    #print("INPUT DITERIMA")
-    pick = questionary.select("INPUT DITERIMA", choices=["Tambahkan Lagi", "<-"], qmark="").ask()
+    # Menu Setelah INPUT
+    pick = questionary.select("\nINPUT DITERIMA", choices=["Tambahkan Lagi", "<-"], qmark="").ask()
     if pick == "<-": return
     else: ingput(x)
 
-def database():
+def database(): # Load/Buat database
     # Buat database
     conn = sqlite3.connect('data.db')
     tabel_keuangan = '''CREATE TABLE IF NOT EXISTS data_keuangan
@@ -302,17 +318,21 @@ def database():
     conn.commit()
     conn.close()
 
-def main():
+def main(): # Main Menu
+    # Array Pilihan Menu
     menu = ["Pengeluaran", "Pemasukan", "Random", "Others", "=EXIT="]
+
     while True:
-        title("ATURAZA")
+        title("ATURAZA") # JUDUL
+
+        # Pilih Menu
         pick = questionary.select("Menu: ", choices=menu, qmark="").ask()
-        if pick == menu[4]:
+        if pick == menu[4]: # EXIT
             clear()
             print("Terima kasih!")
             time.sleep(0.5)
             return
         ingput(pick)
 
-database()
-main()
+database()  # Load Database dulu
+main()      # Main menu
