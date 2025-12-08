@@ -1,13 +1,10 @@
 import questionary, os, time, sqlite3
-from questionary import Style
+#from questionary import Style
 from rich.console import Console
 from rich.table import Table
 
 console = Console()
 tanggal = time.strftime("%Y-%m-%d", time.localtime(time.time()))
-menu = ["Pengeluaran", "Pemasukan", "Random", "Others", "=EXIT="]
-kat_in = ["Gaji", "Bulanan", "Rezeki"]
-kat_out = ["Konsumsi", "Transportasi", "Daily", "Hiburan", "Development"]
 
 # Tes github
 
@@ -61,10 +58,11 @@ def random_rec():
 
     pick = questionary.select("Option:", choices=["Another One","Back"], qmark="").ask()
     if pick == "Another One": random_rec()
-    else: return
+    else:
+        return
 
 def settings():
-    set_menu = ["Add Kategori Pengeluaran", "Add Kategori Pemasukan", "Clear Data", "<-"]
+    set_menu = ["Add Kategori", "Clear Data", "<-"]
     
     while True:
         title("SETTINGS")
@@ -74,23 +72,22 @@ def settings():
 
         if pick == set_menu[0]:
             # Belum store di database
-            title("KATEGORI PENGELUARAN")
-            print("Masukkan nama kategori baru (ketik - untuk mengakhiri)")
+            title("ADD KATEGORI")
+            conn = sqlite3.connect('data.db')
+            cursor = conn.cursor()
             masih = True
+            pick = questionary.select("Add Kategori Apa? ", choices=["Pemasukan","Pengeluaran"], qmark="").ask()
+            print("Masukkan nama kategori baru (ketik - untuk mengakhiri)")
             while masih:
                 x = str(input(": "))
-                if x=='-': masih=False
-                else: kat_out.append(x)
-        elif pick == set_menu[1]:
-            # Belum store di database
-            title("KATEGORI PEMASUKAN")
-            print("Masukkan nama kategori baru (ketik - untuk mengakhiri)")
-            masih = True
-            while masih:
-                x = str(input(": "))
-                if x=='-': masih=False
-                else: kat_in.append(x)
-        elif pick==set_menu[2]:
+                if x=='-' or x=='':
+                    conn.commit()
+                    conn.close()
+                    masih=False
+                else:
+                    cursor.execute("INSERT OR IGNORE INTO tab_kategori VALUES (?, ?)", ('in' if pick == "Pemasukan" else 'out',x))
+
+        elif pick==set_menu[1]:
             title("CLEAR DATA")
             pick = questionary.select("Apakah anda yakin akan MENGHAPUS SEMUA DATA ", choices=["Ya", "Tidak"], qmark="").ask()
             if pick=="Ya":
@@ -101,7 +98,6 @@ def settings():
                 cursor.execute("VACUUM")
                 conn.commit()
                 conn.close()
-    #settings()
 
 def stats():
     title("STATISTICS")
@@ -233,10 +229,21 @@ def ingput(x):
     title(x.upper())
 
     conn = sqlite3.connect('data.db')
-    table_create_query = '''CREATE TABLE IF NOT EXISTS data_keuangan
-            (tanggal TEXT, keterangan TEXT, subjek TEXT, kategori TEXT, masuk INT, keluar INT, catatan TEXT)
-    '''
-    #Autocomplete feature
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT nama FROM tab_kategori
+        WHERE jenis = ?
+                    """, ("in" if y == "masuk" else "out", ))
+
+    kategori = cursor.fetchall()
+    kategoris = [row[0] for row in kategori]
+
+    query = f'''INSERT INTO data_keuangan (tanggal, keterangan, subjek, kategori, {y}, catatan) VALUES (?, ?, ?, ?, ?, ?)'''
+
+    # INPUT
+
+    # Autocomplete feature (subjek/lokasi)
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -246,14 +253,12 @@ def ingput(x):
     
     sub_list = cursor.fetchall()
     subjeks = [row[0] for row in sub_list]
-    conn.execute(table_create_query)
-    query = f'''INSERT INTO data_keuangan (tanggal, keterangan, subjek, kategori, {y}, catatan) VALUES (?, ?, ?, ?, ?, ?)'''
 
     #a = str(input("Keterangan: " ))
-    a = questionary.text("Keterangan: ").ask()
+    a = questionary.text("Keterangan: ",qmark="").ask()
     #b = str(input("Lokasi/Subjek: "))
     b = questionary.autocomplete("Lokasi/Subjek: ",choices=subjeks, qmark="").ask()
-    c = questionary.select("Kategori: ", choices=kat_out, qmark="").ask()
+    c = questionary.select("Kategori: ", choices=kategoris, qmark="").ask()
     d = int(input("Nominal: "))
     e = str(input("Catatan: "))
 
@@ -267,10 +272,38 @@ def ingput(x):
 
     #print("INPUT DITERIMA")
     pick = questionary.select("INPUT DITERIMA", choices=["Tambahkan Lagi", "<-"], qmark="").ask()
-    if pick == "<-": main()
+    if pick == "<-": return
     else: ingput(x)
 
+def database():
+    # Buat database
+    conn = sqlite3.connect('data.db')
+    tabel_keuangan = '''CREATE TABLE IF NOT EXISTS data_keuangan
+            (tanggal TEXT, keterangan TEXT, subjek TEXT, kategori TEXT, masuk INT, keluar INT, catatan TEXT)
+    '''
+    tabel_kategori = '''CREATE TABLE IF NOT EXISTS tab_kategori
+            (jenis TEXT, nama TEXT UNIQUE)
+    '''
+    # Buat Tabel Kategori
+    conn.execute(tabel_keuangan)
+    conn.execute(tabel_kategori)
+    conn.commit()
+
+    default_in = ["Gaji", "Bulanan", "Rezeki"]
+    default_out = ["Konsumsi", "Transportasi", "Daily", "Hiburan", "Development"]
+
+    cursor = conn.cursor()
+
+    for i in default_in:
+        cursor.execute("INSERT OR IGNORE INTO tab_kategori VALUES ('in', ?)", (i,))
+    for i in default_out:
+        cursor.execute("INSERT OR IGNORE INTO tab_kategori VALUES ('out', ?)", (i,))
+    
+    conn.commit()
+    conn.close()
+
 def main():
+    menu = ["Pengeluaran", "Pemasukan", "Random", "Others", "=EXIT="]
     while True:
         title("ATURAZA")
         pick = questionary.select("Menu: ", choices=menu, qmark="").ask()
@@ -281,4 +314,5 @@ def main():
             return
         ingput(pick)
 
+database()
 main()
