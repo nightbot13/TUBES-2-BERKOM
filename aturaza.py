@@ -202,8 +202,13 @@ def stats():        # Bagian Statistic
         WHERE strftime('%Y-%m', tanggal) = strftime('%Y-%m', 'now')
     """
     )
-    cash_flow = cursor.fetchone()[0]
+    hasil_cashflow = cursor.fetchone()[0]
+    if hasil_cashflow is None:
+        cash_flow = 0
+    else:
+        cash_flow = hasil_cashflow
     color = "red" if cash_flow<=0 else "green"
+    
     bln = bulan[int(time.strftime("%m", time.localtime(time.time())))]
     #pr(f"Cash Flow ({bln}): [bold {color}]{uang(cash_flow)}[/bold {color}]")
     # Average Spendings/Day
@@ -537,7 +542,10 @@ def ingput(x):      # Input Pengeluaran/Pemasukan
     
     t = str(questionary.text("Tanggal: ", default=ftanggal(tanggal), validate=validasi_tanggal, qmark="").ask())   
     a = str(questionary.text("Keterangan: ",qmark="").ask())
-    b = questionary.autocomplete("Lokasi/Subjek: ",choices=subjeks, qmark="").ask()
+    if subjeks:
+        b = questionary.autocomplete("Lokasi/Subjek: ",choices=subjeks, qmark="").ask()
+    else:
+        b = questionary.text("Lokasi/Subjek: ", qmark="").ask()
     c = questionary.select("Kategori: ", choices=kategoris, qmark="").ask()
     d = int(questionary.text("Nominal: ", validate=validasi_nominal, qmark="").ask())
     e = str(questionary.text("Catatan: ",qmark="").ask())
