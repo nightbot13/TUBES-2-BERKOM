@@ -399,6 +399,56 @@ def database():     # Load/Buat database
     conn.commit()
     conn.close()
 
+def mutlak(x):
+    if x >= 0:
+        return x
+    else:
+        return -x
+
+def peringatan():
+    bulan_ini = time.strftime("%Y-%m")
+    conn = sqlite3.connect("data.db")
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT SUM(masuk) FROM data_keuangan
+        WHERE strftime('%Y-%m', tanggal) = ?
+    """, (bulan_ini,))
+    row_masuk = cursor.fetchone()
+    total_masuk = row_masuk[0] if row_masuk[0] is not None else 0
+
+    cursor.execute("""
+        SELECT SUM(keluar) FROM data_keuangan
+        WHERE strftime('%Y-%m', tanggal) = ?
+    """, (bulan_ini,))
+    row_keluar = cursor.fetchone()
+    total_keluar = row_keluar[0] if row_keluar[0] is not None else 0
+
+    conn.close()
+    sisa = total_masuk - total_keluar
+    batas_kritis = 100000
+    
+    if sisa < 0:
+        pesan = f"[bold red]PERINGATAN KERAS![/bold red]\n"\
+                f"Pengeluaran bulan ini melebihi pemasukan!\n\n" \
+                f"Pemasukan : {uang(total_masuk)}\n" \
+                f"Pengeluaran : {uang(total_keluar)}\n" \
+                f"Defisit : [bold red]{uang(mutlak(sisa))}[/bold red]"
+        console.print(Panel(pesan, title="⚠️ FINANCIAL WARNING", style="red"))
+    
+    elif sisa <= batas_kritis:
+        pesan = f"[bold yellow]HATI-HATI![/bold yellow]\n"\
+                f"Sisa uang bulan ini sudah menipis!\n\n" \
+                f"Pemasukan : {uang(total_masuk)}\n" \
+                f"Pengeluaran : {uang(total_keluar)}\n" \
+                f"Sisa : [bold yellow]{uang(mutlak(sisa))}[/bold yellow]"
+        console.print(Panel(pesan, title="⚠️ LOW BALANCE", style="yellow"))
+    else :
+        pesan = f"[bold green]KONDISI AMAN[/bold green]\n"\
+                f"Cashflow bulan ini masih positif\n\n" \
+                f"Sisa : [bold green]{uang(mutlak(sisa))}[/bold green]"
+        console.print(Panel(pesan, title="✅ STATUS OK", style="green"))
+
 def main():         # Main Menu
     # Array Pilihan Menu
     menu = [Choice(title=[('red',"Pengeluaran")], value="Pengeluaran"),
@@ -409,6 +459,7 @@ def main():         # Main Menu
     while True:
         clear()
         print(f.renderText("ATURAZA"), end="")
+        peringatan()
 
         # Pilih Menu
         pick = questionary.select("Menu: ", choices=menu, qmark="", style=style, default=last).ask()
