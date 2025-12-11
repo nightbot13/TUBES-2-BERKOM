@@ -399,7 +399,7 @@ def database():     # Load/Buat database
     conn.commit()
     conn.close()
 
-def main(): # Main Menu
+def main():         # Main Menu
     # Array Pilihan Menu
     menu = [Choice(title=[('red',"Pengeluaran")], value="Pengeluaran"),
             Choice(title=[('green',"Pemasukan")], value="Pemasukan"),
@@ -407,7 +407,8 @@ def main(): # Main Menu
     last = None
 
     while True:
-        title("ATURAZA") # JUDUL
+        clear()
+        print(f.renderText("ATURAZA"), end="")
 
         # Pilih Menu
         pick = questionary.select("Menu: ", choices=menu, qmark="", style=style, default=last).ask()
