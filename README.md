@@ -22,21 +22,18 @@ ATURAZA is a robust and interactive Command Line Interface (CLI) application des
 <ul>
   <li>Language: Python 3.13</li>
   <li>Database: SQLite3 (Local storage, auto-generated) </li>
-  <li>Image Processing: OpenCV (cv2) & PyZbar (QR)</li>
   <li>Libraries: 
     <ul>
       <li>Rich</li>
       <li>Questionary</li>
       <li>Pyfiglet</li>
     </ul>
-  </li>
-  <li>Data Visualization: Matplotlib</li>
-  
+  </li>  
 </ul>
 
 
 ## Installation
-Prerequisites
+# Prerequisites
 Make sure you have Python 3.7+ installed on your system.
 1. Clone the Repository
    ```sh
@@ -58,7 +55,7 @@ Make sure you have Python 3.7+ installed on your system.
 1. Navigation: Use the Arrow Keys (⬆️ ⬇️) to navigate menus and Enter to select.
 2. Input:
    <ul>
-     <li>Date: Type "hari ini" for today, or use format DD/MM/YYYY.</li>
+     <li>Date: You can type "hari ini" for today or just press enter, or use format DD/MM/YYYY.</li>
      <li>Nominal: Enter numbers only (no dots or commas).</li>
    </ul>
 3. Autocomplete: When typing a location/subject, the app suggests previous entries to save time.
