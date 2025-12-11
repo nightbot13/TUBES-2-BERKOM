@@ -1,4 +1,4 @@
-import questionary, os, time, sqlite3
+import questionary, os, time, sqlite3, csv
 from datetime import datetime
 from questionary import Style, Choice
 from rich import print as pr
@@ -45,6 +45,9 @@ def bold(x):        # Bold manual
     return  "\033[1m"+x+"\033[0m"
 
 def rtanggal(x):    # Formatting utk menjadi data SQL
+    if x.lower() == "hari ini":
+        return time.strftime("%Y-%m-%d")
+    
     t = datetime.strptime(x, "%d/%m/%Y")
     return t.strftime("%Y-%m-%d")
 
@@ -169,6 +172,28 @@ def stats():        # Bagian Statistic
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
 
+    # Grafik Pengeluaran 7 Hari Terakhir
+    print(bold("📉 Tren Pengeluaran (7 Hari Terakhir)"))
+    cursor.execute("""
+        SELECT tanggal, SUM(keluar) FROM data_keuangan
+        WHERE keluar > 0 AND tanggal >= date('now', '-6 days')
+        GROUP BY tanggal ORDER BY tanggal ASC
+    """)
+    data_grafik = cursor.fetchall()
+    if len(data_grafik) > 0:
+        nilai_tertinggi = 0
+        for data in data_grafik:
+            if data[1] > nilai_tertinggi:
+                nilai_tertinggi = data[1]
+        for tgl, jumlah in data_grafik:
+            tgl_pendek = tgl[5:]
+            panjang_bar = int((jumlah / nilai_tertinggi) * 20)
+            visual_bar = "█" * panjang_bar
+            print(f"{tgl_pendek} | {visual_bar} {uang(jumlah)}")
+    else:
+        print("Belum ada data pengeluaran minggu ini.")
+    print("-" * 30)
+
     # Cash Flow Bulan ini
     cursor.execute(
     """
@@ -191,7 +216,10 @@ def stats():        # Bagian Statistic
                     """)
 
     rataan = cursor.fetchone()
-    rerata = round(rataan[0])
+    if rataan[0] is not None:
+        rerata = round(rataan[0])
+    else:
+        rerata = 0
     #print(f"Rerata Pengeluaran (per Hari): {bold(uang(rerata))}", end="\n\n")
 
     table = Table(title="Umum")
@@ -326,9 +354,7 @@ def history(x, selected_cats=None):     # History keuangan
     # Pilih Menu
     pick = questionary.select("\nOption:", choices=pilihan, qmark="", style=style).ask()
     if pick == "Edit Data": 
-        print("Fitur belum tersedia.") # SOON
-        questionary.press_any_key_to_continue().ask()
-        history(x)
+        edit_data()
     elif pick == pilihan [1]:
         title("History")
         console.print(table)        
@@ -374,7 +400,7 @@ def random_rec():   # Rekomendasi Konsumsi Random
 
 def others():       # Submenu Others
     # Pilihan Menu
-    others_menu = ["History", "Statistics", "Financial Plan", "Settings","<-"]
+    others_menu = ["History", "Statistics", "Financial Plan", "Export Data", "Settings","<-"]
     last = None
 
     while True:
@@ -388,10 +414,86 @@ def others():       # Submenu Others
             last = stats()
         elif pick == "Financial Plan":
             last = plan()
+        elif pick == "Export Data":
+            last = export_csv()
         elif pick == "Settings":
             last = settings() 
         elif pick == "<-":
             return
+
+def export_csv():   # Export data
+    title("EXPORT DATA")
+    conn = sqlite3.connect("data.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM data_keuangan ORDER BY tanggal DESC")
+    rows = cursor.fetchall()
+    conn.close()
+
+    filename = f"keuangan_{time.strftime('%Y%m%d')}.csv"
+
+    with open(filename, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Tanggal', 'Keterangan', 'Subjek', 'Kategori', 'Masuk', 'Keluar', 'Catatan'])
+        writer.writerows(rows)
+
+    pr(f"\n[bold green]Sukses![/bold green] Data diexport ke: {filename}")   
+    questionary.press_any_key_to_continue().ask()
+
+def edit_data(): # Edit data
+    title("EDIT DATA")
+    conn = sqlite3.connect("data.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT rowid, tanggal, keterangan, masuk, keluar FROM data_keuangan ORDER BY tanggal DESC LIMIT 15")
+    rows = cursor.fetchall()
+
+    choices = []
+    for r in rows:
+        val_masuk = r[3] if r[3] is not None else 0
+        val_keluar = r[4] if r[4] is not None else 0
+
+        if val_masuk > 0:
+            nominal = val_masuk
+            tipe = "[+]"
+        else:
+            nominal = val_keluar
+            tipe = "[-]"
+        label = f"[{r[0]}] {ftanggal(r[1])} | {r[2]} | {uang(nominal)} {tipe}"
+        choices.append(label)
+    choices.append("Kembali")
+    pick = questionary.select("Pilih Transaksi: ", choices=choices, style=style).ask()
+
+    if pick == "Kembali":
+        conn.close()
+        return
+    row_id = pick.split(']')[0].replace('[', '')
+    action = questionary.select("Tindakan: ", choices=["Hapus Data", "Edit Data", "Batal"], style=style).ask()
+
+    if action == "Hapus Data":
+        yakin = questionary.confirm("Yakin ingin menghapus data permanen?").ask()
+        if yakin:
+            cursor.execute("DELETE FROM data_keuangan WHERE rowid = ?", (row_id,))
+            conn.commit()
+            print("Data Dihapus.")
+    elif action == "Edit Data":
+        cursor.execute("SELECT * FROM data_keuangan WHERE rowid = ?", (row_id,))
+        old = cursor.fetchone()
+        
+        val_masuk_lama = old[4] if old[4] is not None else 0
+        cursor.execute("DELETE FROM data_keuangan WHERE rowid = ?", (row_id,))
+        conn.commit()
+        conn.close()
+
+        if val_masuk_lama > 0:
+            jenis = "Pemasukan"
+        else:
+            jenis = "Pengeluaran"
+        
+        print(f"Mode Edit: Input ulang data untuk {jenis}.")
+        ingput(jenis)
+        return
+    conn.close()
+    return
 
 def ingput(x):      # Input Pengeluaran/Pemasukan
     # Cek Menu yang Dipilih
@@ -433,11 +535,11 @@ def ingput(x):      # Input Pengeluaran/Pemasukan
     # INPUT
     query = f'''INSERT INTO data_keuangan (tanggal, keterangan, subjek, kategori, {y}, catatan) VALUES (?, ?, ?, ?, ?, ?)'''
     
-    t = str(questionary.text("Tanggal: ", default=ftanggal(tanggal), qmark="").ask())   
+    t = str(questionary.text("Tanggal: ", default=ftanggal(tanggal), validate=validasi_tanggal, qmark="").ask())   
     a = str(questionary.text("Keterangan: ",qmark="").ask())
     b = questionary.autocomplete("Lokasi/Subjek: ",choices=subjeks, qmark="").ask()
     c = questionary.select("Kategori: ", choices=kategoris, qmark="").ask()
-    d = int(questionary.text("Nominal: ",qmark="").ask())
+    d = int(questionary.text("Nominal: ", validate=validasi_nominal, qmark="").ask())
     e = str(questionary.text("Catatan: ",qmark="").ask())
 
     isian = (rtanggal(t), a, b, c, d, e)
@@ -532,6 +634,32 @@ def database():     # Load/Buat database
     conn.commit()
     conn.close()
 
+def validasi_nominal(x):
+    if x.isdigit():
+        return True
+    else :
+        return "Harap masukkan angka saja tanpa titik/koma"
+
+def validasi_tanggal(x):
+    #Cek keyword khusus
+    if x.lower() == "hari ini":
+        return True
+    
+    #Cek Panjang String (harus 10 karakter: DD/MM/YYYY)
+    if len(x) != 10:
+        return "Format salah. Panjang karakter harus 10 (DD/MM/YYYY)."
+    
+    #Cek posisi garis miring '/'
+    if x[2] != '/' or x[5] != '/':
+        return "Format salah. Gunakan pemisah '/' (contoh: 17/08/2025)."
+    
+    #Cek apakah bagian Hari, Bulan, Tahun adalah angka
+    parts = x.split('/')
+    if parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit():
+        return True
+    else:
+        return "Tanggal harus berupa angka."
+    
 def main():         # Main Menu
     # Array Pilihan Menu
     menu = [Choice(title=[('red',"Pengeluaran")], value="Pengeluaran"),
