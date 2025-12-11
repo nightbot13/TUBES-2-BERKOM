@@ -41,14 +41,14 @@ def uang(x):        # Formatting Rupiah
 
     return ans+',00'
 
-def bold(x):
+def bold(x):        # Bold manual
     return  "\033[1m"+x+"\033[0m"
 
-def rtanggal(x): # Formatting utk menjadi data SQL
+def rtanggal(x):    # Formatting utk menjadi data SQL
     t = datetime.strptime(x, "%d/%m/%Y")
     return t.strftime("%Y-%m-%d")
 
-def ftanggal(x): # Formatting tanggal utk diprint
+def ftanggal(x):    # Formatting tanggal utk diprint
     t = datetime.strptime(x, "%Y-%m-%d")
     return t.strftime("%d/%m/%Y")
 
@@ -96,35 +96,66 @@ def settings():     # Bagian Settings
                 last = "Clear Data"
 
 def plan():
-    title("Financial Plan")
-    
-    conn = sqlite3.connect("data.db")
-    cursor = conn.cursor()
+    while True:
+        title("Financial Plan")
+        pick = questionary.select("Pilih rencana finansial:", choices=["50/30/20","60/20/20","40/40/20","70/20/10","Custom", "<-"], style=style).ask()
+        if pick == "<-":
+            return "Financial Plan"
+        
+        if pick == "Custom":
+            custom = questionary.text("Masukkan format custom (Needs/Wants/Savings):").ask()
+            try:
+                needs, wants, savings = map(int, custom.split("/"))
+            except:
+                pr("[red]Format tidak valid! Gunakan angka/angka/angka[/red]")
+                exit()
+        else:
+            needs, wants, savings = map(int, pick.split("/"))
 
-    # Hitung Jumlah Bulan Total
-    cursor.execute(
-    """ 
-        SELECT COUNT(DISTINCT strftime('%Y-%m', tanggal))
-        FROM data_keuangan
-    """
-    )
-    bulan = cursor.fetchone()[0]
+        conn = sqlite3.connect("data.db")
+        cursor = conn.cursor()
 
-    # Hitung Total Income
-    cursor.execute("""
-        SELECT SUM(masuk)
-        FROM data_keuangan
-        WHERE kategori IN (?, ?)
-                    """, ("Gaji", "Bulanan"))
+        # Hitung Jumlah Bulan Total
+        cursor.execute(
+        """ 
+            SELECT COUNT(DISTINCT strftime('%Y-%m', tanggal))
+            FROM data_keuangan
+        """
+        )
+        bulan = cursor.fetchone()[0]
 
-    jumlah = cursor.fetchone()[0]
-    conn.close()
+        # Hitung Total Income
+        cursor.execute("""
+            SELECT SUM(masuk)
+            FROM data_keuangan
+            WHERE kategori IN (?, ?)
+                        """, ("Gaji", "Bulanan"))
 
-    income = round(jumlah/bulan, 2)
+        jumlah = cursor.fetchone()[0]
+        conn.close()
 
-    print(f"Income per Bulan: {uang(income)}")
+        income = int(round(jumlah/bulan,0))
 
-    questionary.press_any_key_to_continue().ask()
+        n = int(round(income * (needs / 100),0))
+        w = int(round(income * (wants / 100),0))
+        s = int(round(income * (savings / 100),0))
+
+        table = Table()
+
+        table.add_column("Kategori", justify="center", style="cyan")
+        table.add_column("Persentase", justify="center", style="magenta")
+        table.add_column("Nominal (Rp)", justify="right", style="green")
+
+        table.add_row("Needs (Kebutuhan)", f"{needs}%", f"{uang(n)}")
+        table.add_row("Wants (Keinginan)", f"{wants}%", f"{uang(w)}")
+        table.add_row("Savings (Tabungan)", f"{savings}%", f"{uang(s)}")
+
+        title(pick)
+        console.print(table)
+
+        print(f"Income per Bulan (Rerata): {bold(uang(income))}\n")
+
+        questionary.press_any_key_to_continue().ask()
 
 def stats():        # Bagian Statistic
     title("STATISTICS")
@@ -144,7 +175,7 @@ def stats():        # Bagian Statistic
     cash_flow = cursor.fetchone()[0]
     color = "red" if cash_flow<=0 else "green"
     bln = bulan[int(time.strftime("%m", time.localtime(time.time())))]
-    pr(f"Cash Flow ({bln}): [bold {color}]{uang(cash_flow)}[/bold {color}]")
+    #pr(f"Cash Flow ({bln}): [bold {color}]{uang(cash_flow)}[/bold {color}]")
     # Average Spendings/Day
     cursor.execute("""
         SELECT AVG(total_harian) AS rata_harian
@@ -156,7 +187,18 @@ def stats():        # Bagian Statistic
 
     rataan = cursor.fetchone()
     rerata = round(rataan[0])
-    print(f"Rerata Pengeluaran (per Hari): {bold(uang(rerata))}", end="\n\n")
+    #print(f"Rerata Pengeluaran (per Hari): {bold(uang(rerata))}", end="\n\n")
+
+    table = Table(title="Umum")
+
+    table.add_column("Keterangan", justify="left", style="cyan")
+    table.add_column("Nilai", justify="right")
+
+    table.add_row(f"Cash Flow ({bln})", f"[bold {color}]{uang(cash_flow)}[/bold {color}]")
+    table.add_row("Rerata Pengeluaran (per Hari)", f"[bold]{(uang(rerata))}[/bold]")
+
+    console.print(table)
+    print("")
 
     # Most Spent this Week
     cursor.execute("""
@@ -199,7 +241,7 @@ def stats():        # Bagian Statistic
     # Buat tabel Most Visited
     table = Table(title="Most Frequent", caption=" Most frequently interacted", caption_justify="left")
 
-    table.add_column("Lokasi/Subjek")
+    table.add_column("Lokasi/Subjek", style="cyan")
     table.add_column("Frekuensi")
 
     for row in most_freq:
@@ -209,9 +251,9 @@ def stats():        # Bagian Statistic
     print("")
     conn.close()
 
-    print("On progress...\n")
+    print("More stats on progress...\n")
 
-    questionary.press_any_key_to_continue().ask()
+    questionary.press_any_key_to_continue("Tekan enter untuk kembali").ask()
     return "Statistics"
 
 def history(x, selected_cats=None):     # History keuangan
