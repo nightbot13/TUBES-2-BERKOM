@@ -320,9 +320,10 @@ def random_rec():   # Rekomendasi Konsumsi Random
     conn.close()
 
     pick = questionary.select("Option:", choices=["Ganti", "<-"], qmark="", style=style).ask()
-    if pick == "Ganti": random_rec()
+    if pick == "Ganti":
+        random_rec()
     else:
-        return
+        return "Random"
 
 def others():       # Submenu Others
     # Pilihan Menu
@@ -407,13 +408,13 @@ def ingput(x):      # Input Pengeluaran/Pemasukan
     else:
         ingput(x)
 
-def mutlak(x):
+def mutlak(x):      # Fungsi absolut()
     if x >= 0:
         return x
     else:
         return -x
 
-def peringatan():
+def peringatan():   # Peringatan limit
     bulan_ini = time.strftime("%Y-%m")
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
