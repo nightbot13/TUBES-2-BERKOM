@@ -1,5 +1,5 @@
 # TUBES-2-BERKOM
-### ATURAZA 💰
+## ATURAZA 💰
 ATURAZA is a robust and interactive Command Line Interface (CLI) application designed to help users manage their personal finances effectively. Built with Python, it combines the simplicity of a terminal with a beautiful, rich user interface to track income, expenses, and financial health.
 
 ### Key Features
@@ -32,8 +32,8 @@ ATURAZA is a robust and interactive Command Line Interface (CLI) application des
 </ul>
 
 
-## Installation
-# Prerequisites
+### Installation
+#### Prerequisites
 Make sure you have Python 3.7+ installed on your system.
 1. Clone the Repository
    ```sh
@@ -51,7 +51,7 @@ Make sure you have Python 3.7+ installed on your system.
    ```
    Note: The application will automatically generate a data.db file in the same directory upon the first launch.
 
-## Usage Guide
+### Usage Guide
 1. Navigation: Use the Arrow Keys (⬆️ ⬇️) to navigate menus and Enter to select.
 2. Input:
    <ul>
