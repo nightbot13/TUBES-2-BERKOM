@@ -98,19 +98,6 @@ def settings():     # Bagian Settings
 def plan():
     while True:
         title("Financial Plan")
-        pick = questionary.select("Pilih rencana finansial:", choices=["50/30/20","60/20/20","40/40/20","70/20/10","Custom", "<-"], style=style).ask()
-        if pick == "<-":
-            return "Financial Plan"
-        
-        if pick == "Custom":
-            custom = questionary.text("Masukkan format custom (Needs/Wants/Savings):").ask()
-            try:
-                needs, wants, savings = map(int, custom.split("/"))
-            except:
-                pr("[red]Format tidak valid! Gunakan angka/angka/angka[/red]")
-                exit()
-        else:
-            needs, wants, savings = map(int, pick.split("/"))
 
         conn = sqlite3.connect("data.db")
         cursor = conn.cursor()
@@ -134,7 +121,25 @@ def plan():
         jumlah = cursor.fetchone()[0]
         conn.close()
 
+        if bulan == None or jumlah == None:
+            pr("[bold red] Financial Plan not available yet.[/bold red]\n*no Pemasukan data")
+            return "Financial Plan"
+
         income = int(round(jumlah/bulan,0))
+
+        pick = questionary.select("Pilih rencana finansial:", choices=["50/30/20","60/20/20","40/40/20","70/20/10","Custom", "<-"], qmark="", style=style).ask()
+        if pick == "<-":
+            return "Financial Plan"
+        
+        if pick == "Custom":
+            custom = questionary.text("Masukkan format custom (Needs/Wants/Savings):").ask()
+            try:
+                needs, wants, savings = map(int, custom.split("/"))
+            except:
+                pr("[red]Format tidak valid! Gunakan angka/angka/angka[/red]")
+                exit()
+        else:
+            needs, wants, savings = map(int, pick.split("/"))
 
         n = int(round(income * (needs / 100),0))
         w = int(round(income * (wants / 100),0))
