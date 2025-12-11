@@ -39,18 +39,20 @@ ATURAZA is a robust and interactive Command Line Interface (CLI) application des
 Prerequisites
 Make sure you have Python 3.7+ installed on your system.
 1. Clone the Repository
+   ```sh
+   git clone https://github.com/yourusername/aturaza.git
+   cd aturaza
+   ```
 2. Install Dependencies
+   You can install the required libraries using ```pip```:
    ```sh
    pip install questionary rich pyfiglet prompt_toolkit
    ```
-3. You need Python 3.10 installed. Run the following command in your terminal to install the required libraries:
-    ```sh
-    pip install customtkinter pandas opencv-python pyzbar pillow matplotlib 
-    ```
-4. Run the Application
+3. Run the Application
    ```sh
    python aturaza.py
    ```
+   Note: The application will automatically generate a data.db file in the same directory upon the first launch.
 
 ## Usage Guide
 1. Navigation: Use the Arrow Keys (⬆️ ⬇️) to navigate menus and Enter to select.
