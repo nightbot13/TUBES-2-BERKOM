@@ -214,22 +214,41 @@ def stats():        # Bagian Statistic
     questionary.press_any_key_to_continue().ask()
     return "Statistics"
 
-def history(x):     # History keuangan
+def history(x, selected_cats=None):     # History keuangan
     title("History")
-    
+    if selected_cats is None:
+        selected_cats = []
+
     # Pilihan Menu di History
-    pilihan = ["Edit Data",f"Sort by {"Oldest" if x == "DESC" else "Newest"}","<-"]
+    pilihan = ["Edit Data", "Filter by Category", f"Sort by {"Oldest" if x == "DESC" else "Newest"}", "<-"]
     
     # Connect ke database
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
 
-    # Sort data berdasarkan tanggal (defaulnya dari yang terbaru)
-    cursor.execute(f"SELECT tanggal, keterangan, subjek, kategori, masuk, keluar, catatan FROM data_keuangan ORDER BY tanggal {x}")
+    # Sort data berdasarkan tanggal (defaultnya dari yang terbaru)
+    if selected_cats:
+        placeholders = ",".join("?" * len(selected_cats))
+        query = f"""
+            SELECT tanggal, keterangan, subjek, kategori, masuk, keluar, catatan
+            FROM data_keuangan
+            WHERE kategori IN ({placeholders})
+            ORDER BY tanggal {x}
+        """
+        cursor.execute(query, selected_cats)
+        caption_text = "Filter: " + ", ".join(selected_cats)
+    else:
+        cursor.execute(f"""
+            SELECT tanggal, keterangan, subjek, kategori, masuk, keluar, catatan
+            FROM data_keuangan
+            ORDER BY tanggal {x}
+        """)
+        caption_text = "Filter: -"
+
     rows = cursor.fetchall()
 
     # Membuat Tabel
-    table = Table(caption=f"*Sorted by Date: {"Newest" if x == "DESC" else "Oldest"}" ,caption_justify="left")
+    table = Table(caption=f"*Sorted by Date: {"Newest" if x == "DESC" else "Oldest"}\n{caption_text}",caption_justify="left")
 
     table.add_column("Tanggal", justify="center")
     table.add_column("Keterangan", justify="left")
@@ -243,6 +262,16 @@ def history(x):     # History keuangan
     for row in rows:
         table.add_row(ftanggal(str(row[0])), str(row[1]), str(row[2]), str(row[3]), uang(row[4]), uang(row[5]), str(row[6]))
 
+    # Ambil data kategori
+    cursor.execute(
+    """
+        SELECT nama
+        FROM tab_kategori
+    """
+    )
+    kategori = cursor.fetchall()
+    kategoris = [row[0] for row in kategori]
+
     # Print Tabel
     console.print(table)
     conn.close() # Mengakhiri koneksi dengan database
@@ -253,8 +282,16 @@ def history(x):     # History keuangan
         print("Fitur belum tersedia.") # SOON
         questionary.press_any_key_to_continue().ask()
         history(x)
-    elif pick == pilihan[1]:
-        history(f"{"ASC" if x == "DESC" else "DESC"}") # Ubah sorting tanggal
+    elif pick == pilihan [1]:
+        title("History")
+        console.print(table)        
+        
+        checkbox_choices = [Choice(title=i, value=i, checked=(i in selected_cats)) for i in kategoris]
+        fltr = questionary.checkbox("\nKategori:", choices=checkbox_choices, qmark="", style=style).ask()
+        
+        history(x, selected_cats=fltr)
+    elif pick == pilihan[2]:
+        history(f"{"ASC" if x == "DESC" else "DESC"}", selected_cats) # Ubah sorting tanggal
     elif pick == "<-":
         return "History"
 
@@ -275,8 +312,6 @@ def random_rec():   # Rekomendasi Konsumsi Random
     table.add_column("Tanggal", justify="center")
     table.add_column("Keterangan", justify="left")
     table.add_column("Lokasi/Subjek")
-    #table.add_column("Kategori", justify="left")
-    #table.add_column("Masuk", justify="right", style="green")
     table.add_column("Harga", justify="right", style="red")
     table.add_column("Catatan", justify="left")
     table.add_row(ftanggal(str(row[0])), str(row[1]), str(row[2]), uang(row[5]), str(row[6]))#'''
@@ -372,33 +407,6 @@ def ingput(x):      # Input Pengeluaran/Pemasukan
     else:
         ingput(x)
 
-def database():     # Load/Buat database
-    # Buat database
-    conn = sqlite3.connect('data.db')
-    tabel_keuangan = '''CREATE TABLE IF NOT EXISTS data_keuangan
-            (tanggal TEXT, keterangan TEXT, subjek TEXT, kategori TEXT, masuk INT, keluar INT, catatan TEXT)
-    '''
-    tabel_kategori = '''CREATE TABLE IF NOT EXISTS tab_kategori
-            (jenis TEXT, nama TEXT UNIQUE)
-    '''
-    # Buat Tabel Kategori
-    conn.execute(tabel_keuangan)
-    conn.execute(tabel_kategori)
-    conn.commit()
-
-    default_in = ["Gaji", "Bulanan", "Bonus"]
-    default_out = ["Konsumsi", "Transportasi", "Daily", "Hiburan", "Development"]
-
-    cursor = conn.cursor()
-
-    for i in default_in:
-        cursor.execute("INSERT OR IGNORE INTO tab_kategori VALUES ('in', ?)", (i,))
-    for i in default_out:
-        cursor.execute("INSERT OR IGNORE INTO tab_kategori VALUES ('out', ?)", (i,))
-    
-    conn.commit()
-    conn.close()
-
 def mutlak(x):
     if x >= 0:
         return x
@@ -448,6 +456,33 @@ def peringatan():
                 f"Cashflow bulan ini masih positif\n\n" \
                 f"Sisa : [bold green]{uang(mutlak(sisa))}[/bold green]"
         console.print(Panel(pesan, title="✅ STATUS OK", style="green"))
+
+def database():     # Load/Buat database
+    # Buat database
+    conn = sqlite3.connect('data.db')
+    tabel_keuangan = '''CREATE TABLE IF NOT EXISTS data_keuangan
+            (tanggal TEXT, keterangan TEXT, subjek TEXT, kategori TEXT, masuk INT, keluar INT, catatan TEXT)
+    '''
+    tabel_kategori = '''CREATE TABLE IF NOT EXISTS tab_kategori
+            (jenis TEXT, nama TEXT UNIQUE)
+    '''
+    # Buat Tabel Kategori
+    conn.execute(tabel_keuangan)
+    conn.execute(tabel_kategori)
+    conn.commit()
+
+    default_in = ["Gaji", "Bulanan", "Bonus"]
+    default_out = ["Konsumsi", "Transportasi", "Daily", "Hiburan", "Development"]
+
+    cursor = conn.cursor()
+
+    for i in default_in:
+        cursor.execute("INSERT OR IGNORE INTO tab_kategori VALUES ('in', ?)", (i,))
+    for i in default_out:
+        cursor.execute("INSERT OR IGNORE INTO tab_kategori VALUES ('out', ?)", (i,))
+    
+    conn.commit()
+    conn.close()
 
 def main():         # Main Menu
     # Array Pilihan Menu
