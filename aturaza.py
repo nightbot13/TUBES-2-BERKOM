@@ -1,72 +1,68 @@
 import questionary, os, time, sqlite3
-#from questionary import Style
+from datetime import datetime
+from questionary import Style, Choice
+from rich import print as pr
 from rich.console import Console
 from rich.table import Table
+from rich.panel import Panel
+from rich.text import Text
+from prompt_toolkit.styles import Style as S
+from pyfiglet import Figlet
 
+# Setup
+f = Figlet(font='standard')
 console = Console()
 tanggal = time.strftime("%Y-%m-%d", time.localtime(time.time()))
+style = Style([("pointer", "bold yellow"), ("highlighted", "bold"), ("selected", "")])
+tes = S([('red', 'fg:#ff0000'), ('green','fg:#00ff00')])
+bulan = ["None", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
 
-def ftanggal(x): # Formatting tanggal utk diprint
-    thn=str(x[0:4])
-    bln=str(x[5:7])
-    hri=str(x[8:10])
-    return(f"{hri}/{bln}/{thn}")
-
+# Terminal
 def clear(): # Clear terminal
     os.system("cls" if os.name == "nt" else "clear")
 
+# Formatting
 def title(x): # Formatting Judul
     clear()
-    x = "\033[4m\033[1m"+x+"\033[0m"
-    print(x)
+    if x == "Pengeluaran":
+        color = "red"
+    elif x == "Pemasukan":
+        color = "green"
+    else:
+        color = "white"
+    console.print(
+        Panel(Text(x.upper(),justify="center", style="bold"), border_style=color)
+    )
 
-def uang(x): # Formatting Rupiah
+def uang(x):        # Formatting Rupiah
     if str(x) == 'None': return ""
 
     ans = f"Rp{x:,}".replace(",", ".")
 
     return ans+',00'
 
-def random_rec(): # Rekomendasi Konsumsi Random
-    clear()
-    conn = sqlite3.connect("data.db")
-    cursor = conn.cursor()
+def bold(x):
+    return  "\033[1m"+x+"\033[0m"
 
-    cursor.execute("""
-        SELECT * FROM data_keuangan
-        WHERE kategori = ?
-        ORDER BY RANDOM()
-        LIMIT 1
-    """, ("Konsumsi",))
-    row = cursor.fetchone()
+def rtanggal(x): # Formatting utk menjadi data SQL
+    t = datetime.strptime(x, "%d/%m/%Y")
+    return t.strftime("%Y-%m-%d")
 
-    table = Table(title="Random Pick", caption="*Hanya kategori konsumsi", caption_justify="left")
-    table.add_column("Tanggal", justify="center")
-    table.add_column("Keterangan", justify="left")
-    table.add_column("Lokasi/Subjek")
-    #table.add_column("Kategori", justify="left")
-    #table.add_column("Masuk", justify="right", style="green")
-    table.add_column("Harga", justify="right", style="red")
-    table.add_column("Catatan", justify="left")
-    table.add_row(ftanggal(str(row[0])), str(row[1]), str(row[2]), uang(row[5]), str(row[6]))#'''
-    
-    console.print(table)
-    conn.close()
+def ftanggal(x): # Formatting tanggal utk diprint
+    t = datetime.strptime(x, "%Y-%m-%d")
+    return t.strftime("%d/%m/%Y")
 
-    pick = questionary.select("Option:", choices=["Another One","Back"], qmark="").ask()
-    if pick == "Another One": random_rec()
-    else:
-        return
-
-def settings(): # Bagian Settings
+# Program
+def settings():     # Bagian Settings
     # Pilihan Menu
     set_menu = ["Add Kategori", "Clear Data", "<-"]
-    
+    last = None
+
     while True:
         title("SETTINGS")
-        pick = questionary.select("Options: ", choices=set_menu, qmark="").ask()
+        pick = questionary.select("Options: ", choices=set_menu, qmark="", style=style, default=last).ask()
         if pick == "<-":
-            return
+            return "Settings"
 
         if pick == set_menu[0]:
             title("ADD KATEGORI")
@@ -75,11 +71,13 @@ def settings(): # Bagian Settings
             masih = True
             pick = questionary.select("Add Kategori Apa? ", choices=["Pemasukan","Pengeluaran"], qmark="").ask()
             print("Masukkan nama kategori baru (ketik - untuk mengakhiri)")
+
             while masih:
                 x = str(input(": "))
                 if x=='-' or x=='':
                     conn.commit()
                     conn.close()
+                    last = "Add Kategori"
                     masih=False
                 else:
                     cursor.execute("INSERT OR IGNORE INTO tab_kategori VALUES (?, ?)", ('in' if pick == "Pemasukan" else 'out',x))
@@ -95,14 +93,58 @@ def settings(): # Bagian Settings
                 cursor.execute("VACUUM")
                 conn.commit()
                 conn.close()
+                last = "Clear Data"
 
-def stats(): # Bagian Statistic
+def plan():
+    title("Financial Plan")
+    
+    conn = sqlite3.connect("data.db")
+    cursor = conn.cursor()
+
+    # Hitung Jumlah Bulan Total
+    cursor.execute(
+    """ 
+        SELECT COUNT(DISTINCT strftime('%Y-%m', tanggal))
+        FROM data_keuangan
+    """
+    )
+    bulan = cursor.fetchone()[0]
+
+    # Hitung Total Income
+    cursor.execute("""
+        SELECT SUM(masuk)
+        FROM data_keuangan
+        WHERE kategori IN (?, ?)
+                    """, ("Gaji", "Bulanan"))
+
+    jumlah = cursor.fetchone()[0]
+    conn.close()
+
+    income = round(jumlah/bulan, 2)
+
+    print(f"Income per Bulan: {uang(income)}")
+
+    questionary.press_any_key_to_continue().ask()
+
+def stats():        # Bagian Statistic
     title("STATISTICS")
     
     # Connect ke database
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
 
+    # Cash Flow Bulan ini
+    cursor.execute(
+    """
+        SELECT SUM(masuk)-SUM(keluar)
+        FROM data_keuangan
+        WHERE strftime('%Y-%m', tanggal) = strftime('%Y-%m', 'now')
+    """
+    )
+    cash_flow = cursor.fetchone()[0]
+    color = "red" if cash_flow<=0 else "green"
+    bln = bulan[int(time.strftime("%m", time.localtime(time.time())))]
+    pr(f"Cash Flow ({bln}): [bold {color}]{uang(cash_flow)}[/bold {color}]")
     # Average Spendings/Day
     cursor.execute("""
         SELECT AVG(total_harian) AS rata_harian
@@ -114,7 +156,7 @@ def stats(): # Bagian Statistic
 
     rataan = cursor.fetchone()
     rerata = round(rataan[0])
-    print(f"Rata-Rata Pengeluaran per Hari: {uang(rerata)}", end="\n\n")
+    print(f"Rerata Pengeluaran (per Hari): {bold(uang(rerata))}", end="\n\n")
 
     # Most Spent this Week
     cursor.execute("""
@@ -141,6 +183,7 @@ def stats(): # Bagian Statistic
     table.add_row(ftanggal(str(terbanyak[0])), str(terbanyak[1]), str(terbanyak[2]), str(terbanyak[3]), uang(terbanyak[4]), str(terbanyak[5]))
 
     console.print(table)
+    print("")
 
     # Most Visited
     cursor.execute("""
@@ -163,29 +206,30 @@ def stats(): # Bagian Statistic
         table.add_row(str(row[0]), str(row[1]))
     
     console.print(table)
+    print("")
     conn.close()
 
-    print("On progress...")
+    print("On progress...\n")
 
     questionary.press_any_key_to_continue().ask()
-    return
+    return "Statistics"
 
-def history(x): # History keuangan
-    clear() # Bersihin
-
+def history(x):     # History keuangan
+    title("History")
+    
     # Pilihan Menu di History
-    pilihan = ["Edit Data",f"Sort by {"Oldest" if x == "DESC" else "Newest"}","Back"]
+    pilihan = ["Edit Data",f"Sort by {"Oldest" if x == "DESC" else "Newest"}","<-"]
     
     # Connect ke database
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
 
     # Sort data berdasarkan tanggal (defaulnya dari yang terbaru)
-    cursor.execute(f"SELECT tanggal, keterangan, subjek, kategori, masuk, keluar, catatan FROM data_keuangan ORDER BY rowid {x}")
+    cursor.execute(f"SELECT tanggal, keterangan, subjek, kategori, masuk, keluar, catatan FROM data_keuangan ORDER BY tanggal {x}")
     rows = cursor.fetchall()
 
     # Membuat Tabel
-    table = Table(title="History", caption=f" SORTING: {"newest" if x == "DESC" else "oldest"}", caption_justify="left")
+    table = Table(caption=f"*Sorted by Date: {"Newest" if x == "DESC" else "Oldest"}" ,caption_justify="left")
 
     table.add_column("Tanggal", justify="center")
     table.add_column("Keterangan", justify="left")
@@ -204,47 +248,81 @@ def history(x): # History keuangan
     conn.close() # Mengakhiri koneksi dengan database
 
     # Pilih Menu
-    pick = questionary.select("Option:", choices=pilihan, qmark="").ask()
+    pick = questionary.select("\nOption:", choices=pilihan, qmark="", style=style).ask()
     if pick == "Edit Data": 
         print("Fitur belum tersedia.") # SOON
         questionary.press_any_key_to_continue().ask()
         history(x)
     elif pick == pilihan[1]:
         history(f"{"ASC" if x == "DESC" else "DESC"}") # Ubah sorting tanggal
-    elif pick == "Back":
+    elif pick == "<-":
+        return "History"
+
+def random_rec():   # Rekomendasi Konsumsi Random
+    clear()
+    conn = sqlite3.connect("data.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT * FROM data_keuangan
+        WHERE kategori = ?
+        ORDER BY RANDOM()
+        LIMIT 1
+    """, ("Konsumsi",))
+    row = cursor.fetchone()
+
+    table = Table(title="Random Pick", caption="*Hanya kategori konsumsi", caption_justify="left")
+    table.add_column("Tanggal", justify="center")
+    table.add_column("Keterangan", justify="left")
+    table.add_column("Lokasi/Subjek")
+    #table.add_column("Kategori", justify="left")
+    #table.add_column("Masuk", justify="right", style="green")
+    table.add_column("Harga", justify="right", style="red")
+    table.add_column("Catatan", justify="left")
+    table.add_row(ftanggal(str(row[0])), str(row[1]), str(row[2]), uang(row[5]), str(row[6]))#'''
+    
+    console.print(table)
+    conn.close()
+
+    pick = questionary.select("Option:", choices=["Ganti", "<-"], qmark="", style=style).ask()
+    if pick == "Ganti": random_rec()
+    else:
         return
 
-def others(): # Submenu Others
+def others():       # Submenu Others
     # Pilihan Menu
-    others_menu = ["History", "Statistics", "Settings","<-"]
-    
+    others_menu = ["History", "Statistics", "Financial Plan", "Settings","<-"]
+    last = None
+
     while True:
-        title("OTHERS") # Judul
+        title("OTHERS") # Judul 
 
         # Pilih Menu
-        pick = questionary.select("Options: ", choices=others_menu, qmark="").ask()
-        if pick=='History':
-            history("DESC") # History, defaultnya dari yang terbaru
-        elif pick=="Statistics":
-            stats()
-        elif pick=="Settings":
-            settings() 
-        elif pick=="<-":
+        pick = questionary.select("Options: ", choices=others_menu, qmark="", style=style, default=last).ask()
+        if pick == 'History':
+            last = history("DESC") # History, defaultnya dari yang terbaru
+        elif pick == "Statistics":
+            last = stats()
+        elif pick == "Financial Plan":
+            last = plan()
+        elif pick == "Settings":
+            last = settings() 
+        elif pick == "<-":
             return
 
-def ingput(x): # Input Pengeluaran/Pemasukan
+def ingput(x):      # Input Pengeluaran/Pemasukan
     # Cek Menu yang Dipilih
     if x == "Others":
         others()
-        return
+        return x
     elif x == "Random":
         random_rec()
-        return
+        return x
     
     # Convert x ke y
     y = ("keluar" if x=="Pengeluaran" else "masuk")
 
-    title(x.upper()) # JUDUL
+    title(x) # JUDUL
 
     # Ambil Kategori
     conn = sqlite3.connect('data.db')
@@ -271,14 +349,15 @@ def ingput(x): # Input Pengeluaran/Pemasukan
 
     # INPUT
     query = f'''INSERT INTO data_keuangan (tanggal, keterangan, subjek, kategori, {y}, catatan) VALUES (?, ?, ?, ?, ?, ?)'''
-
+    
+    t = str(questionary.text("Tanggal: ", default=ftanggal(tanggal), qmark="").ask())   
     a = str(questionary.text("Keterangan: ",qmark="").ask())
     b = questionary.autocomplete("Lokasi/Subjek: ",choices=subjeks, qmark="").ask()
     c = questionary.select("Kategori: ", choices=kategoris, qmark="").ask()
     d = int(questionary.text("Nominal: ",qmark="").ask())
     e = str(questionary.text("Catatan: ",qmark="").ask())
 
-    isian = (tanggal, a, b, c, d, e)
+    isian = (rtanggal(t), a, b, c, d, e)
     
     cursor = conn.cursor()
     cursor.execute(query,isian)
@@ -287,11 +366,13 @@ def ingput(x): # Input Pengeluaran/Pemasukan
     conn.close()
 
     # Menu Setelah INPUT
-    pick = questionary.select("\nINPUT DITERIMA", choices=["Tambahkan Lagi", "<-"], qmark="").ask()
-    if pick == "<-": return
-    else: ingput(x)
+    pick = questionary.select("\nINPUT DITERIMA", choices=["Tambahkan Lagi", "<-"], qmark="", style=style).ask()
+    if pick == "<-":
+        return x
+    else:
+        ingput(x)
 
-def database(): # Load/Buat database
+def database():     # Load/Buat database
     # Buat database
     conn = sqlite3.connect('data.db')
     tabel_keuangan = '''CREATE TABLE IF NOT EXISTS data_keuangan
@@ -305,7 +386,7 @@ def database(): # Load/Buat database
     conn.execute(tabel_kategori)
     conn.commit()
 
-    default_in = ["Gaji", "Bulanan", "Rezeki"]
+    default_in = ["Gaji", "Bulanan", "Bonus"]
     default_out = ["Konsumsi", "Transportasi", "Daily", "Hiburan", "Development"]
 
     cursor = conn.cursor()
@@ -318,21 +399,27 @@ def database(): # Load/Buat database
     conn.commit()
     conn.close()
 
-def main(): # Main Menu
+def main():         # Main Menu
     # Array Pilihan Menu
-    menu = ["Pengeluaran", "Pemasukan", "Random", "Others", "=EXIT="]
+    menu = [Choice(title=[('red',"Pengeluaran")], value="Pengeluaran"),
+            Choice(title=[('green',"Pemasukan")], value="Pemasukan"),
+            "Random", "Others", "=EXIT="]
+    last = None
 
     while True:
-        title("ATURAZA") # JUDUL
+        clear()
+        print(f.renderText("ATURAZA"), end="")
 
         # Pilih Menu
-        pick = questionary.select("Menu: ", choices=menu, qmark="").ask()
+        pick = questionary.select("Menu: ", choices=menu, qmark="", style=style, default=last).ask()
+        
         if pick == menu[4]: # EXIT
             clear()
-            print("Terima kasih!")
+            print(f.renderText("Terima Kasih!"))
             time.sleep(0.5)
             return
-        ingput(pick)
+        last=ingput(pick)
 
-database()  # Load Database dulu
-main()      # Main menu
+if __name__ == "__main__": # Memastikan sedang di main
+    database()  # Load Database dulu
+    main()      # Main menu
