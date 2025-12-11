@@ -40,7 +40,7 @@ Make sure you have Python 3.7+ installed on your system.
    git clone https://github.com/yourusername/aturaza.git
    cd aturaza
    ```
-2. Install Dependencies
+2. Install Dependencies <br/>
    You can install the required libraries using ```pip```:
    ```sh
    pip install questionary rich pyfiglet prompt_toolkit
