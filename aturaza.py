@@ -15,7 +15,7 @@ console = Console()
 tanggal = time.strftime("%Y-%m-%d", time.localtime(time.time()))
 style = Style([("pointer", "bold yellow"), ("highlighted", "bold"), ("selected", "")])
 tes = S([('red', 'fg:#ff0000'), ('green','fg:#00ff00')])
-bulan = ["None", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+nama_bulan = ["None", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
 
 # Terminal
 def clear(): # Clear terminal
@@ -218,15 +218,17 @@ def stats():        # Bagian Statistic
     """)
     data_grafik = cursor.fetchall()
     if len(data_grafik) > 0:
-        nilai_tertinggi = 0
-        for data in data_grafik:
-            if data[1] > nilai_tertinggi:
-                nilai_tertinggi = data[1]
-        for tgl, jumlah in data_grafik:
-            tgl_pendek = tgl[5:]
-            panjang_bar = int((jumlah / nilai_tertinggi) * 20)
-            visual_bar = "█" * panjang_bar
-            print(f"{tgl_pendek} | {visual_bar} {uang(jumlah)}")
+        nilai_tertinggi = max((d[1] for d in data_grafik if d[1] is not None), default=0)
+        if nilai_tertinggi == 0:
+            for tgl, jumlah in data_grafik:
+                tgl_pendek = tgl[5:]
+                print(f"{tgl_pendek} | {uang(jumlah)}")
+        else:
+            for tgl, jumlah in data_grafik:
+                tgl_pendek = tgl[5:]
+                panjang_bar = int((jumlah / nilai_tertinggi) * 20)
+                visual_bar = "█" * panjang_bar
+                print(f"{tgl_pendek} | {visual_bar} {uang(jumlah)}")
     else:
         print("Belum ada data pengeluaran minggu ini.")
     print("-" * 30)
@@ -248,7 +250,7 @@ def stats():        # Bagian Statistic
     
     color = "red" if cash_flow<=0 else "green"
     
-    bln = bulan[int(time.strftime("%m", time.localtime(time.time())))]
+    bln = nama_bulan[int(time.strftime("%m", time.localtime(time.time())))]
     #pr(f"Cash Flow ({bln}): [bold {color}]{uang(cash_flow)}[/bold {color}]")
     # Average Spendings/Day
     cursor.execute("""
@@ -339,13 +341,15 @@ def stats():        # Bagian Statistic
     questionary.press_any_key_to_continue("Tekan enter untuk kembali").ask()
     return "Statistics"
 
-def history(x, selected_cats=None):     # History keuangan
+def history(sort_order="DESC", selected_cats=None):     # History keuangan
     title("History")
     if selected_cats is None:
         selected_cats = []
 
     # Pilihan Menu di History
-    pilihan = ["Edit Data", "Filter by Category", f"Sort by {"Oldest" if x == "DESC" else "Newest"}", "<-"]
+    current_sort_label = "Newest" if sort_order == "DESC" else "Oldest"
+    sort_toggle_label = "Sort by Oldest" if sort_order == "DESC" else "Sort by Newest"
+    pilihan = ["Edit Data", "Filter by Category", sort_toggle_label, "<-"]
     
     # Connect ke database
     conn = sqlite3.connect("data.db")
@@ -358,7 +362,7 @@ def history(x, selected_cats=None):     # History keuangan
             SELECT tanggal, keterangan, subjek, kategori, masuk, keluar, catatan
             FROM data_keuangan
             WHERE kategori IN ({placeholders})
-            ORDER BY tanggal {x}
+            ORDER BY tanggal {sort_order}
         """
         cursor.execute(query, selected_cats)
         caption_text = "Filter: " + ", ".join(selected_cats)
@@ -366,14 +370,15 @@ def history(x, selected_cats=None):     # History keuangan
         cursor.execute(f"""
             SELECT tanggal, keterangan, subjek, kategori, masuk, keluar, catatan
             FROM data_keuangan
-            ORDER BY tanggal {x}
+            ORDER BY tanggal {sort_order}
         """)
         caption_text = "Filter: -"
 
     rows = cursor.fetchall()
 
     # Membuat Tabel
-    table = Table(caption=f"*Sorted by Date: {"Newest" if x == "DESC" else "Oldest"}\n{caption_text}",caption_justify="left")
+    caption = f"*Sorted by Date: {current_sort_label}\n{caption_text}"
+    table = Table(caption=caption, caption_justify="left")
 
     table.add_column("Tanggal", justify="center")
     table.add_column("Keterangan", justify="left")
@@ -407,14 +412,20 @@ def history(x, selected_cats=None):     # History keuangan
         edit_data()
     elif pick == pilihan [1]:
         title("History")
-        console.print(table)        
+        console.print(table)
+
+        if not kategoris:
+            pr("[bold yellow]Belum ada kategori. Silakan tambahkan melalui Settings -> Add Kategori.[/bold yellow]")
+            questionary.press_any_key_to_continue("Tekan enter untuk kembali").ask()
+            return "History"
         
         checkbox_choices = [Choice(title=i, value=i, checked=(i in selected_cats)) for i in kategoris]
         fltr = questionary.checkbox("\nKategori:", choices=checkbox_choices, qmark="", style=style).ask()
         
-        history(x, selected_cats=fltr)
+        history(sort_order, selected_cats=fltr)
     elif pick == pilihan[2]:
-        history(f"{"ASC" if x == "DESC" else "DESC"}", selected_cats) # Ubah sorting tanggal
+        new_order = "ASC" if sort_order == "DESC" else "DESC"
+        history(new_order, selected_cats)
     elif pick == "<-":
         return "History"
 
@@ -576,6 +587,13 @@ def ingput(x):      # Input Pengeluaran/Pemasukan
     kategori = cursor.fetchall()
     kategoris = [row[0] for row in kategori]
 
+    if not kategoris:
+        pr("[bold yellow]Tidak ada kategori tersedia untuk jenis ini.[/bold yellow]")
+        pr("Silakan tambahkan kategori melalui Settings -> Add Kategori terlebih dahulu.")
+        questionary.press_any_key_to_continue("Tekan enter untuk kembali").ask()
+        conn.close()
+        return x
+    
     # Autocomplete feature (subjek/lokasi)
     cursor = conn.cursor()
 
@@ -615,12 +633,6 @@ def ingput(x):      # Input Pengeluaran/Pemasukan
     else:
         ingput(x)
 
-def mutlak(x):      # Fungsi absolut()
-    if x >= 0:
-        return x
-    else:
-        return -x
-
 def peringatan():   # Peringatan limit
     bulan_ini = time.strftime("%Y-%m")
     conn = sqlite3.connect("data.db")
@@ -649,7 +661,7 @@ def peringatan():   # Peringatan limit
                 f"Pengeluaran bulan ini melebihi pemasukan!\n\n" \
                 f"Pemasukan : {uang(total_masuk)}\n" \
                 f"Pengeluaran : {uang(total_keluar)}\n" \
-                f"Defisit : [bold red]{uang(mutlak(sisa))}[/bold red]"
+                f"Defisit : [bold red]{uang(abs(sisa))}[/bold red]"
         console.print(Panel(pesan, title="⚠️ FINANCIAL WARNING", style="red"))
     
     elif sisa <= batas_kritis:
@@ -657,12 +669,12 @@ def peringatan():   # Peringatan limit
                 f"Sisa uang bulan ini sudah menipis!\n\n" \
                 f"Pemasukan : {uang(total_masuk)}\n" \
                 f"Pengeluaran : {uang(total_keluar)}\n" \
-                f"Sisa : [bold yellow]{uang(mutlak(sisa))}[/bold yellow]"
+                f"Sisa : [bold yellow]{uang(abs(sisa))}[/bold yellow]"
         console.print(Panel(pesan, title="⚠️ LOW BALANCE", style="yellow"))
     else :
         pesan = f"[bold green]KONDISI AMAN[/bold green]\n"\
                 f"Cashflow bulan ini masih positif\n\n" \
-                f"Sisa : [bold green]{uang(mutlak(sisa))}[/bold green]"
+                f"Sisa : [bold green]{uang(abs(sisa))}[/bold green]"
         console.print(Panel(pesan, title="✅ STATUS OK", style="green"))
 
 def database():     # Load/Buat database
@@ -692,11 +704,34 @@ def database():     # Load/Buat database
     conn.commit()
     conn.close()
 
-def validasi_nominal(x):
-    if x.isdigit():
-        return True
-    else :
+def validasi_nominal(x: str, min_value: int = 1, max_value: int | None = None):
+    if x is None:
         return "Harap masukkan angka saja tanpa titik/koma"
+    
+    s = x.strip().replace(" ", "")
+    if s == "":
+        return "Harap masukkan angka saja tanpa titik/koma"
+
+    if s[0] == "+":
+        s = s[1:]
+        if s == "":
+            return "Harap masukkan angka saja tanpa titik/koma"
+
+    if not s.isdigit():
+        return "Harap masukkan angka saja tanpa titik/koma"
+
+    if len(s) > 15:
+        return "Nilai terlalu besar"
+
+    nilai = int(s)
+
+    if nilai < min_value:
+        return f"Nilai harus minimal {min_value}"
+
+    if (max_value is not None) and (nilai > max_value):
+        return f"Nilai harus maksimal {max_value}"
+
+    return True
 
 def validasi_tanggal(x):
     #Cek keyword khusus
@@ -711,12 +746,41 @@ def validasi_tanggal(x):
     if x[2] != '/' or x[5] != '/':
         return "Format salah. Gunakan pemisah '/' (contoh: 17/08/2025)."
     
-    #Cek apakah bagian Hari, Bulan, Tahun adalah angka
-    parts = x.split('/')
-    if parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit():
-        return True
-    else:
-        return "Tanggal harus berupa angka."
+    dd, mm, yyyy = x.split("/")
+
+    # Harus angka
+    if not (dd.isdigit() and mm.isdigit() and yyyy.isdigit()):
+        return "Tanggal harus berupa angka"
+
+    dd = int(dd)
+    mm = int(mm)
+    yyyy = int(yyyy)
+
+    # Validasi bulan
+    if mm < 1 or mm > 12:
+        return "Bulan harus antara 1–12"
+
+    # Hari per bulan
+    hari_per_bulan = [31, 28, 31, 30, 31, 30,
+                      31, 31, 30, 31, 30, 31]
+
+    # Cek tahun kabisat
+    if (yyyy % 400 == 0) or (yyyy % 4 == 0 and yyyy % 100 != 0):
+        hari_per_bulan[1] = 29
+
+    # Validasi hari
+    if dd < 1 or dd > hari_per_bulan[mm - 1]:
+        return f"Hari tidak valid untuk bulan {mm}"
+    
+    today = time.localtime()
+    t_dd = today.tm_mday
+    t_mm = today.tm_mon
+    t_yy = today.tm_year
+
+    if (yyyy, mm, dd) > (t_yy, t_mm, t_dd):
+        return "Tanggal tidak boleh melebihi hari ini"
+
+    return True
     
 def main():         # Main Menu
     # Array Pilihan Menu
