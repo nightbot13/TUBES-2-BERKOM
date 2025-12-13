@@ -87,15 +87,31 @@ def settings():     # Bagian Settings
 
         elif pick==set_menu[1]:
             title("CLEAR DATA")
+
+            conn = sqlite3.connect("data.db")
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM data_keuangan")
+            jumlah_data = cursor.fetchone()[0]
+            
+            if jumlah_data == 0:
+                console.print("[bold yellow] ⚠️  Data masih kosong![/bold yellow]")
+                console.print(" Tidak ada data transaksi yang perlu dihapus.")
+                conn.close()
+                questionary.press_any_key_to_continue("Tekan enter untuk kembali").ask()
+                last = "Clear Data"
+                continue
+
             pick = questionary.select("Apakah anda yakin akan MENGHAPUS SEMUA DATA ", choices=["Ya", "Tidak"], qmark="").ask()
             if pick=="Ya":
                 conn = sqlite3.connect("data.db")
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM dat_keuangan")
+                cursor.execute("DELETE FROM data_keuangan")
                 conn.commit()
                 cursor.execute("VACUUM")
                 conn.commit()
                 conn.close()
+                
+                console.print("[bold green]Semua data berhasil dihapus![/bold green]")
                 last = "Clear Data"
 
 def plan():
@@ -124,8 +140,11 @@ def plan():
         jumlah = cursor.fetchone()[0]
         conn.close()
 
-        if bulan == None or jumlah == None:
-            pr("[bold red] Financial Plan not available yet.[/bold red]\n*no Pemasukan data")
+        if bulan == None or bulan == 0 or jumlah == None:
+            pr("[bold yellow] Financial Plan belum tersedia.[/bold yellow]\n Butuh data Pemasukan (Gaji/Bulanan) minimal 1 bulan.")
+            
+            questionary.press_any_key_to_continue("Tekan enter untuk kembali").ask()
+            
             return "Financial Plan"
 
         income = int(round(jumlah/bulan,0))
@@ -135,14 +154,32 @@ def plan():
             return "Financial Plan"
         
         if pick == "Custom":
-            custom = questionary.text("Masukkan format custom (Needs/Wants/Savings):").ask()
-            try:
-                needs, wants, savings = map(int, custom.split("/"))
-            except:
-                pr("[red]Format tidak valid! Gunakan angka/angka/angka[/red]")
-                exit()
+            while True: 
+                custom = questionary.text("Masukkan format custom (Needs/Wants/Savings):").ask()
+                
+                parts = custom.split("/")
+
+                if len(parts) != 3:
+                    pr("[bold red]Format Salah![/bold red] Gunakan 3 angka dipisah '/' (Cth: 50/30/20)")
+                    continue # Ulangi loop
+
+                if parts[0].strip().isdigit() and parts[1].strip().isdigit() and parts[2].strip().isdigit():
+                    needs = int(parts[0])
+                    wants = int(parts[1])
+                    savings = int(parts[2])
+
+                    total_persen = needs + wants + savings
+                    if total_persen != 100:
+                        pr(f"[bold red]Total Persentase Salah![/bold red] Total saat ini: {total_persen}%. Total harus pas 100%.")
+                        continue
+
+                    break 
+                else:
+                    pr("[bold red]Format Salah![/bold red] Input harus berupa angka.")
+                    continue
         else:
-            needs, wants, savings = map(int, pick.split("/"))
+            parts = pick.split("/")
+            needs, wants, savings = map(int, parts)
 
         n = int(round(income * (needs / 100),0))
         w = int(round(income * (wants / 100),0))
@@ -202,11 +239,13 @@ def stats():        # Bagian Statistic
         WHERE strftime('%Y-%m', tanggal) = strftime('%Y-%m', 'now')
     """
     )
-    hasil_cashflow = cursor.fetchone()[0]
-    if hasil_cashflow is None:
+    hasil_query = cursor.fetchone()
+
+    if hasil_query is None or hasil_query[0] is None:
         cash_flow = 0
     else:
-        cash_flow = hasil_cashflow
+        cash_flow = hasil_query[0]
+    
     color = "red" if cash_flow<=0 else "green"
     
     bln = bulan[int(time.strftime("%m", time.localtime(time.time())))]
@@ -221,10 +260,10 @@ def stats():        # Bagian Statistic
                     """)
 
     rataan = cursor.fetchone()
-    if rataan[0] is not None:
-        rerata = round(rataan[0])
-    else:
+    if rataan is None or rataan[0] is None:
         rerata = 0
+    else:
+        rerata = round(rataan[0])
     #print(f"Rerata Pengeluaran (per Hari): {bold(uang(rerata))}", end="\n\n")
 
     table = Table(title="Umum")
@@ -250,19 +289,22 @@ def stats():        # Bagian Statistic
     terbanyak = cursor.fetchone()
 
     # Membuat tabel Most Spent this Week
-    table = Table(title="Most Spent this Week", caption="*pengeluaran terbanyak minggu ini", caption_justify="left")
+    if terbanyak:
+        table = Table(title="Most Spent this Week", caption="*pengeluaran terbanyak minggu ini", caption_justify="left")
 
-    table.add_column("Tanggal", justify="center")
-    table.add_column("Keterangan", justify="left")
-    table.add_column("Lokasi/Subjek")
-    table.add_column("Kategori", justify="left")
-    table.add_column("Keluar", justify="right", style="red")
-    table.add_column("Catatan", justify="left")
+        table.add_column("Tanggal", justify="center")
+        table.add_column("Keterangan", justify="left")
+        table.add_column("Lokasi/Subjek")
+        table.add_column("Kategori", justify="left")
+        table.add_column("Keluar", justify="right", style="red")
+        table.add_column("Catatan", justify="left")
 
-    # Masukkan data ke dalam tabel
-    table.add_row(ftanggal(str(terbanyak[0])), str(terbanyak[1]), str(terbanyak[2]), str(terbanyak[3]), uang(terbanyak[4]), str(terbanyak[5]))
+        # Masukkan data ke dalam tabel
+        table.add_row(ftanggal(str(terbanyak[0])), str(terbanyak[1]), str(terbanyak[2]), str(terbanyak[3]), uang(terbanyak[4]), str(terbanyak[5]))
 
-    console.print(table)
+        console.print(table)
+    else:
+        pr("[bold dim] Belum ada data pengeluaran minggu ini untuk ditampilkan.[/bold dim]")
     print("")
 
     # Most Visited
@@ -277,19 +319,22 @@ def stats():        # Bagian Statistic
     most_freq = cursor.fetchall()
     
     # Buat tabel Most Visited
-    table = Table(title="Most Frequent", caption=" Most frequently interacted", caption_justify="left")
+    if most_freq:
+        table = Table(title="Most Frequent", caption=" Most frequently interacted", caption_justify="left")
 
-    table.add_column("Lokasi/Subjek", style="cyan")
-    table.add_column("Frekuensi")
+        table.add_column("Lokasi/Subjek", style="cyan")
+        table.add_column("Frekuensi")
 
-    for row in most_freq:
-        table.add_row(str(row[0]), str(row[1]))
-    
-    console.print(table)
+        for row in most_freq:
+            table.add_row(str(row[0]), str(row[1]))
+        
+        console.print(table)
+    else:
+        pr("[bold dim] Belum ada data frekuensi interaksi.[/bold dim]")
     print("")
     conn.close()
 
-    print("More stats on progress...\n")
+    pr("[bold dim] Statistik lainnya sedang dalam pengembangan...\n [/bold dim]")
 
     questionary.press_any_key_to_continue("Tekan enter untuk kembali").ask()
     return "Statistics"
@@ -386,6 +431,11 @@ def random_rec():   # Rekomendasi Konsumsi Random
     """, ("Konsumsi",))
     row = cursor.fetchone()
 
+    if row is None:
+        pr("[bold yellow] Belum ada data Pengeluaran Konsumsi untuk diacak. [/bold yellow]")
+        questionary.press_any_key_to_continue().ask()
+        return "Random"
+    
     table = Table(title="Random Pick", caption="*Hanya kategori konsumsi", caption_justify="left")
     table.add_column("Tanggal", justify="center")
     table.add_column("Keterangan", justify="left")
@@ -441,7 +491,7 @@ def export_csv():   # Export data
         writer.writerow(['Tanggal', 'Keterangan', 'Subjek', 'Kategori', 'Masuk', 'Keluar', 'Catatan'])
         writer.writerows(rows)
 
-    pr(f"\n[bold green]Sukses![/bold green] Data diexport ke: {filename}")   
+    pr(f"\n[bold green] Sukses![/bold green] Data diexport ke: {filename}")   
     questionary.press_any_key_to_continue().ask()
 
 def edit_data(): # Edit data
@@ -690,6 +740,6 @@ def main():         # Main Menu
             return
         last=ingput(pick)
 
-if __name__ == "__main__": # Memastikan sedang di main
+if __name__ == "__main__": # Memastikan sedang di main database()  
     database()  # Load Database dulu
     main()      # Main menu
